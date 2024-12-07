@@ -1,0 +1,92 @@
+#!/bin/bash
+#by 胖虎 2024-12-8
+#GitHub：https://github.com/GitHubPangHu
+
+# 开始时间，统计脚本执行时间使用
+start_time=$(date +%s)
+
+# 配置部分
+SOURCE_WEB_DIR="/website"                      # 网站备份的源目录路径
+TARGET_WEB_DIR="rclone_name:/website"         # 网站备份的目标目录路径
+SOURCE_SQL_DIR="/sql"  # 数据库备份的源目录路径
+TARGET_SQL_DIR="rclone_name:/sql"           # 数据库备份的目标目录路径
+LOG_DIR="./log/"                                   # 日志存放目录
+
+# 检查日志目录是否存在，如果不存在则创建
+if [ ! -d "$LOG_DIR" ]; then
+    mkdir -p "$LOG_DIR"
+fi
+
+# 获取当前时间
+current_time=$(date +"%Y-%m-%d_%H-%M-%S")
+
+# 定义日志文件名，使用时间戳
+LOG_FILE="${LOG_DIR}${current_time}_rclone_sync.log"
+
+# 函数：记录日志并输出到终端
+log_and_echo() {
+    local current_time=$(date "+%Y-%m-%d %H:%M:%S")
+    echo "$current_time - $1" | tee -a "$LOG_FILE"
+}
+
+# 函数：根据传递的秒数计算并输出结构化的时间
+format_duration() {
+    local duration=$1
+    local days=$((duration / 86400))
+    local hours=$(((duration % 86400) / 3600))
+    local minutes=$(((duration % 3600) / 60))
+    local seconds=$((duration % 60))
+    local result=""
+    if [ $days -gt 0 ]; then result+="${days}天 "; fi
+    if [ $hours -gt 0 ]; then result+="${hours}小时 "; fi
+    if [ $minutes -gt 0 ]; then result+="${minutes}分钟 "; fi
+    if [ $seconds -gt 0 ]; then result+="${seconds}秒"; fi
+    echo "$result"
+}
+# 函数：检查源目录和目标存储是否有效
+check_directory_and_target() {
+    local source_dir=$1    # 源目录
+    local target_dir=$2    # 目标存储
+
+    # 检查源目录是否存在并可读
+    if [ ! -d "$source_dir" ] || [ ! -r "$source_dir" ]; then
+        log_and_echo "$source_dir 不存在或不可读，请检查路径和权限。"
+        exit 1
+    fi
+
+    # 检查目标存储是否可访问
+    rclone lsd "$target_dir" > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        log_and_echo "$target_dir 存储不可访问或配置错误，请检查。"
+        exit 1
+    fi
+}
+
+
+log_and_echo "======================== 开始备份任务 ========================"
+
+check_directory_and_target "$SOURCE_WEB_DIR" "$TARGET_WEB_DIR"   # 调用函数检查网站备份源和目标
+# 网站备份
+log_and_echo "网站备份开始"
+rclone sync "$SOURCE_WEB_DIR" "$TARGET_WEB_DIR" -v --exclude "/*/.well-known/" --exclude "/*/cache/" --exclude ".user.ini" --delete-excluded >> "$LOG_FILE" 2>&1
+log_and_echo "网站备份完成"
+
+web_end_time=$(date +%s)
+
+# 数据库备份
+log_and_echo "数据库备份开始"
+check_directory_and_target "$SOURCE_SQL_DIR" "$TARGET_SQL_DIR"   # 调用函数检查数据库备份源和目标
+rclone sync "$SOURCE_SQL_DIR" "$TARGET_SQL_DIR" -v --delete-excluded >> "$LOG_FILE" 2>&1
+log_and_echo "数据库备份完成"
+
+log_and_echo "======================== 备份任务结束 ========================"
+
+# 总结时间
+end_time=$(date +%s)
+web_time=$(format_duration $((web_end_time-start_time)))
+sql_time=$(format_duration $((end_time - web_end_time)))
+total_time=$(format_duration $((end_time - start_time)))
+
+log_and_echo "网站备份用时：$web_time"
+log_and_echo "数据库备份用时：$sql_time"
+log_and_echo "备份数据总用时：$total_time"
