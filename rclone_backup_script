@@ -10,7 +10,8 @@ SOURCE_WEB_DIR="/website"                      # 网站备份的源目录路径
 TARGET_WEB_DIR="rclone_name:/website"         # 网站备份的目标目录路径
 SOURCE_SQL_DIR="/sql"  # 数据库备份的源目录路径
 TARGET_SQL_DIR="rclone_name:/sql"           # 数据库备份的目标目录路径
-LOG_DIR="./log/"                                   # 日志存放目录
+SCRIPT_DIR=$(dirname "$0")      # 获取脚本所在目录
+LOG_DIR="$SCRIPT_DIR/log/"                                   # 日志存放目录
 
 # 检查日志目录是否存在，如果不存在则创建
 if [ ! -d "$LOG_DIR" ]; then
